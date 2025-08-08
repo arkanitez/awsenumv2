@@ -10,16 +10,34 @@ def derive_reachability(g: Graph) -> List[Dict[str, Any]]:
     els = g.elements()
     node_by_id = {e['data']['id']: e for e in els if 'source' not in e['data']}
     edges = [e for e in els if 'source' in e['data']]
-    sg_edges = [e for e in edges if e['data'].get('type') == 'sg-rule']
-    route_edges = [e for e in edges if e['data'].get('type') == 'route']
 
-    # Build adjacency on SG permissions collapsed by (src, dst, proto)
-    # We assume ENIs/instances attached to SGs inherit SG rules.
-    # This is a simplified inference and can be iterated later.
-    derived = []
-    # Example: external -> LB (listener already added); skip duplication.
+    derived_edges = []
 
-    # FUTURE: Use subnet/VPC membership + routes to infer inter-VPC via peering/TGW.
-    # For v1 we skip heavy path search and only add explanation to existing network edges.
+    # Example: If an instance is in a public subnet with a public IP, it's reachable.
+    for node_data in node_by_id.values():
+        if node_data['data'].get('type') == 'instance':
+            instance_id = node_data['data']['id']
+            details = node_data['data'].get('details', {})
+            if details.get('public_ip'):
+                # Find the subnet and check for an internet gateway route
+                for edge in edges:
+                    if edge['data']['source'] == instance_id and 'subnet' in edge['data']['target']:
+                        subnet_id = edge['data']['target']
+                        # Now find the route table for this subnet
+                        for rt_edge in edges:
+                            if rt_edge['data']['source'] == subnet_id and 'rtb' in rt_edge['data']['target']:
+                                rtb_id = rt_edge['data']['target']
+                                # Check for a route to an IGW
+                                for route in edges:
+                                    if route['data']['source'] == rtb_id and 'igw' in route['data']['target']:
+                                        derived_edges.append({
+                                            'id': f"derived:{instance_id}:igw",
+                                            'source': 'internet',
+                                            'target': instance_id,
+                                            'label': 'public-ip-and-route',
+                                            'type': 'derived-reachability',
+                                            'category': 'network',
+                                            'derived': True
+                                        })
 
-    return derived
+    return derived_edges
