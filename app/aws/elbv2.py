@@ -4,19 +4,9 @@ from botocore.config import Config as BotoConfig
 from botocore.exceptions import ClientError
 import boto3
 from ..graph import Graph
+from ..utils import safe_call, mk_id
 
 BOTO_CFG = BotoConfig(retries={'max_attempts': 8, 'mode': 'adaptive'}, read_timeout=25, connect_timeout=10)
-
-def safe_call(fn, *args, **kwargs):
-    try:
-        return fn(*args, **kwargs), None
-    except ClientError as e:
-        return None, e.response['Error'].get('Code')
-    except Exception as e:
-        return None, str(e)
-
-def mk_id(*parts: str) -> str:
-    return ":".join([p for p in parts if p])
 
 def enumerate(session: boto3.Session, account_id: str, region: str, g: Graph, warnings: List[str]) -> None:
     elb = session.client('elbv2', region_name=region, config=BOTO_CFG)
