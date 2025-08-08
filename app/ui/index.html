@@ -1,0 +1,94 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AWS Topology Enumerator</title>
+  <link rel="stylesheet" href="/ui/style.css" />
+  <script src="https://unpkg.com/cytoscape@3.27.0/dist/cytoscape.min.js"></script>
+  <script src="https://unpkg.com/cytoscape-cose-bilkent@4.1.0/cytoscape-cose-bilkent.js"></script>
+  <script src="https://unpkg.com/dagre@0.8.5/dist/dagre.min.js"></script>
+  <script src="https://unpkg.com/cytoscape-dagre@2.5.0/cytoscape-dagre.js"></script>
+  <script src="https://unpkg.com/cytoscape-minimap@3.1.2/cytoscape-minimap.js"></script>
+  <script src="/ui/app.js" defer></script>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>AWS Topology Enumerator</h1>
+      <div class="meta" id="meta"></div>
+      <div class="actions">
+        <button id="fit">Fit</button>
+        <button id="layout">Re-Layout</button>
+        <button id="export-png">Export PNG</button>
+        <button id="export-svg">Export SVG</button>
+        <button id="export-json">Export JSON</button>
+      </div>
+    </header>
+    <aside class="sidebar">
+      <section>
+        <h3>Credentials</h3>
+        <label>Profile</label>
+        <input id="profile" placeholder="default" />
+        <div class="row">
+          <div><label>Access Key</label><input id="ak" /></div>
+          <div><label>Secret Key</label><input id="sk" type="password" /></div>
+        </div>
+        <label>Session Token</label>
+        <input id="st" />
+        <label>AssumeRole ARNs (comma-separated)</label>
+        <input id="roles" placeholder="arn:aws:iam::123:role/ReadOnly, arn:aws:iam::456:role/ReadOnly" />
+      </section>
+
+      <section>
+        <h3>Scope</h3>
+        <label>Regions (comma; ALL for discovery)</label>
+        <input id="regions" placeholder="ap-southeast-1,us-east-1 or ALL" />
+        <div class="row"><button id="quick-sg">ap-southeast-1</button><button id="quick-all">ALL</button></div>
+      </section>
+
+      <section>
+        <h3>View</h3>
+        <div><label><input type="radio" name="view" value="vpc" checked> VPC view</label></div>
+        <div><label><input type="radio" name="view" value="service"> Service view</label></div>
+        <div><label><input type="radio" name="view" value="account"> Account/Region view</label></div>
+        <div class="row">
+          <div><label><input type="checkbox" id="toggle-network" checked> Network</label></div>
+          <div><label><input type="checkbox" id="toggle-resource" checked> Resource</label></div>
+          <div><label><input type="checkbox" id="toggle-data"> Data/Invoke</label></div>
+        </div>
+        <div class="row">
+          <div><label>Neighborhood</label></div>
+          <select id="hop"><option value="0">All</option><option value="1">1-hop</option><option value="2">2-hop</option></select>
+        </div>
+        <div><label>Search</label><input id="search" placeholder="name/id/arn/tag:value" /></div>
+      </section>
+
+      <section>
+        <h3>Legend</h3>
+        <div id="legend"></div>
+      </section>
+
+      <section>
+        <h3>Run</h3>
+        <button id="run" class="primary">Enumerate</button>
+        <div id="status" class="small"></div>
+      </section>
+
+      <section>
+        <h3>Warnings</h3>
+        <div id="warnings"></div>
+      </section>
+
+      <section>
+        <h3>Findings</h3>
+        <div id="findings"></div>
+      </section>
+    </aside>
+    <main>
+      <div id="cy"></div>
+      <div class="panel" id="panel"><div class="small">Select a node or edge to see details.</div></div>
+    </main>
+  </div>
+</body>
+</html>
