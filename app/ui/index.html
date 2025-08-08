@@ -28,22 +28,22 @@
     <aside class="sidebar">
       <section>
         <h3>Credentials</h3>
-        <label>Profile</label>
-        <input id="profile" placeholder="default" />
         <div class="row">
-          <div><label>Access Key</label><input id="ak" /></div>
-          <div><label>Secret Key</label><input id="sk" type="password" /></div>
+            <div><label>Access Key</label><input id="ak" /></div>
+            <div><label>Secret Key</label><input id="sk" type="password" /></div>
         </div>
-        <label>Session Token</label>
+        <label>Profile</label>
+        <input id="profile" value="default" />
+        <label>Session Token (optional)</label>
         <input id="st" />
-        <label>AssumeRole ARNs (comma-separated)</label>
-        <input id="roles" placeholder="arn:aws:iam::123:role/ReadOnly, arn:aws:iam::456:role/ReadOnly" />
+        <label>AssumeRole ARNs (optional, comma-separated)</label>
+        <input id="roles" />
       </section>
 
       <section>
         <h3>Scope</h3>
         <label>Regions (comma; ALL for discovery)</label>
-        <input id="regions" placeholder="ap-southeast-1,us-east-1 or ALL" />
+        <input id="regions" value="ap-southeast-1" />
         <div class="row"><button id="quick-sg">ap-southeast-1</button><button id="quick-all">ALL</button></div>
       </section>
 
