@@ -1,11 +1,23 @@
 from __future__ import annotations
 from typing import List
 from botocore.config import Config as BotoConfig
+from botocore.exceptions import ClientError
+import re
 import boto3
 from ..graph import Graph
-from ..utils import safe_call, mk_id
 
 BOTO_CFG = BotoConfig(retries={'max_attempts': 8, 'mode': 'adaptive'}, read_timeout=25, connect_timeout=10)
+
+def safe_call(fn, *args, **kwargs):
+    try:
+        return fn(*args, **kwargs), None
+    except ClientError as e:
+        return None, e.response['Error'].get('Code')
+    except Exception as e:
+        return None, str(e)
+
+def mk_id(*parts: str) -> str:
+    return ":".join([p for p in parts if p])
 
 def enumerate(session: boto3.Session, account_id: str, region: str, g: Graph, warnings: List[str]) -> None:
     # API Gateway v1 (REST)
@@ -21,10 +33,7 @@ def enumerate(session: boto3.Session, account_id: str, region: str, g: Graph, wa
                 for st in stages.get('item', []):
                     sid = st.get('stageName')
                     g.add_node(mk_id('apigw-stage', account_id, region, api_id, sid), f'Stage {sid}', 'api_gw_stage', region, account_id=account_id, parent=mk_id('apigw', account_id, region, api_id))
-            # Policy (resource policy may exist)
-            _, err3 = safe_call(apigw.get_rest_api, restApiId=api_id)
-            if err3:
-                warnings.append(f"[{account_id}/{region}] apigateway get_rest_api: {err3}")
+            # Integrations for v1 would require walking resources; can be added later.
 
     # API Gateway v2 (HTTP/WebSocket)
     apigwv2 = session.client('apigatewayv2', region_name=region, config=BOTO_CFG)
@@ -47,10 +56,14 @@ def enumerate(session: boto3.Session, account_id: str, region: str, g: Graph, wa
                                mk_id('apigw2-route', account_id, region, api_id, rid),
                                mk_id('integration', account_id, region, api_id, iid),
                                'route→integration', 'bind', 'resource')
-                    # Link to Lambda if URI contains lambda arn
-                    if ':lambda:' in uri:
-                        lam_arn = uri.split('function:')[-1].split(':')[-1] if 'function:' in uri else uri.split(':')[-1]
-                        g.add_edge(mk_id('edge', account_id, region, 'integration', iid, 'lambda', lam_arn),
-                                   mk_id('integration', account_id, region, api_id, iid),
-                                   mk_id('lambda', account_id, region, lam_arn),
-                                   'invokes', 'invoke', 'data')
+                    # Link to Lambda if URI contains /functions/<lambda-arn>/invocations
+                    if uri and '/functions/' in uri:
+                        m = re.search(r'/functions/(arn:aws:lambda:[^/]+)/invocations', uri)
+                        if m:
+                            lam_arn = m.group(1)
+                            g.add_edge(
+                                mk_id('edge', account_id, region, 'integration', iid, 'lambda', lam_arn),
+                                mk_id('integration', account_id, region, api_id, iid),
+                                mk_id('lambda', account_id, region, lam_arn),
+                                'invokes', 'invoke', 'data'
+                            )
