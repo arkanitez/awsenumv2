@@ -3,9 +3,15 @@ from typing import Dict, Any, List, Tuple, Set
 from .graph import Graph
 
 def derive_reachability(g: Graph) -> List[Dict[str, Any]]:
-    """Best-effort reachability edges based on SG rules + routes.
+    """
+    Best-effort reachability edges based on SG rules + routes.
     Produces dashed ('derived': True) network edges with explanation trail in details.
     This is intentionally conservative to avoid false positives.
+
+    Note: This implementation is a simplified model and does not account for
+    Network ACLs, host-based firewalls, or complex routing scenarios. A more
+    comprehensive analysis would require a more sophisticated graph traversal
+    and rule evaluation engine.
     """
     els = g.elements()
     node_by_id = {e['data']['id']: e for e in els if 'source' not in e['data']}
