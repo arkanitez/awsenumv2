@@ -5,8 +5,10 @@ from botocore.exceptions import ClientError
 import json, re
 import boto3
 from ..graph import Graph
+from ..utils import mk_id
+
 BOTO_CFG = BotoConfig(retries={'max_attempts': 8, 'mode': 'adaptive'}, read_timeout=25, connect_timeout=10)
-def mk_id(*parts: str) -> str: return ":".join([p for p in parts if p])
+
 def enumerate(session: boto3.Session, account_id: str, region: str, g: Graph, warnings: List[str]) -> None:
     sfn = session.client('stepfunctions', region_name=region, config=BOTO_CFG)
     try:
@@ -24,6 +26,7 @@ def enumerate(session: boto3.Session, account_id: str, region: str, g: Graph, wa
                         for service in ('lambda','sqs','sns','kinesis'):
                             for m in re.findall(rf"arn:aws:{service}:[^\"']+", definition):
                                 g.add_edge(mk_id('edge', account_id, region, 'sfn', arn, service, m), mk_id('sfn', account_id, region, arn), mk_id(service, account_id, region, m), f'uses {service}', 'invoke', 'data')
-                except ClientError: pass
+                except ClientError as e:
+                    warnings.append(f"[{account_id}/{region}] stepfunctions describe_state_machine for {arn}: {e.response['Error'].get('Code')}")
     except ClientError as e:
         warnings.append(f"[{account_id}/{region}] stepfunctions list_state_machines: {e.response['Error'].get('Code')}");
