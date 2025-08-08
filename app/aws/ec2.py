@@ -5,20 +5,9 @@ from botocore.config import Config as BotoConfig
 import boto3
 
 from ..graph import Graph
+from ..utils import safe_call, mk_id
 
 BOTO_CFG = BotoConfig(retries={'max_attempts': 8, 'mode': 'adaptive'}, read_timeout=25, connect_timeout=10)
-
-def safe_call(fn, *args, **kwargs):
-    try:
-        return fn(*args, **kwargs), None
-    except (ClientError, EndpointConnectionError) as e:
-        code = getattr(e, 'response', {}).get('Error', {}).get('Code', str(e))
-        return None, code
-    except Exception as e:
-        return None, str(e)
-
-def mk_id(*parts: str) -> str:
-    return ":".join([p for p in parts if p])
 
 def range_to_str(from_port, to_port, proto) -> str:
     if from_port is None and to_port is None: return "all"
@@ -158,6 +147,7 @@ def enumerate(session: boto3.Session, account_id: str, region: str, g: Graph, wa
                 src_id = mk_id("cidr", account_id, region, src) if '/' in src else mk_id("sg", account_id, region, src)
                 tgt_id = mk_id("cidr", account_id, region, tgt) if '/' in tgt else mk_id("sg", account_id, region, tgt)
             else:
+                warnings.append(f"[{account_id}/{region}] Unhandled peer type in SG rule: {peer}")
                 continue
             g.add_edge(mk_id("edge", account_id, region, src, tgt, direction),
                        src_id, tgt_id, label, "sg-rule", "network")
