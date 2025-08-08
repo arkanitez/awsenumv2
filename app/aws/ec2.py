@@ -182,7 +182,11 @@ def enumerate(session: boto3.Session, account_id: str, region: str, g: Graph, wa
                     iid = inst['InstanceId']; name = next((t['Value'] for t in inst.get('Tags', []) if t.get('Key') == 'Name'), iid)
                     sid = inst.get('SubnetId'); vpcid = inst.get('VpcId')
                     parent = mk_id("subnet", account_id, region, sid) if sid else (mk_id("vpc", account_id, region, vpcid) if vpcid else None)
-                    g.add_node(mk_id("i", account_id, region, iid), name, "instance", region, details={"state": inst.get('State', {}).get('Name')}, parent=parent, account_id=account_id)
+                    details = {
+                        "state": inst.get('State', {}).get('Name'),
+                        "public_ip": inst.get('PublicIpAddress')
+                    }
+                    g.add_node(mk_id("i", account_id, region, iid), name, "instance", region, details=details, parent=parent, account_id=account_id)
                     if sid:
                         g.add_edge(mk_id("edge", account_id, region, iid, sid), mk_id("i", account_id, region, iid), mk_id("subnet", account_id, region, sid), "in-subnet", "attach", "resource")
                     for sg in inst.get('SecurityGroups', []) or []:
