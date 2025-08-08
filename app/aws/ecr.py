@@ -4,8 +4,10 @@ from botocore.config import Config as BotoConfig
 from botocore.exceptions import ClientError
 import boto3
 from ..graph import Graph
+from ..utils import mk_id
+
 BOTO_CFG = BotoConfig(retries={'max_attempts': 8, 'mode': 'adaptive'}, read_timeout=25, connect_timeout=10)
-def mk_id(*parts: str) -> str: return ":".join([p for p in parts if p])
+
 def enumerate(session: boto3.Session, account_id: str, region: str, g: Graph, warnings: List[str]) -> None:
     ecr = session.client('ecr', region_name=region, config=BOTO_CFG)
     try:
