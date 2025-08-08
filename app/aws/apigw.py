@@ -1,22 +1,11 @@
 from __future__ import annotations
 from typing import List
 from botocore.config import Config as BotoConfig
-from botocore.exceptions import ClientError
 import boto3
 from ..graph import Graph
+from ..utils import safe_call, mk_id
 
 BOTO_CFG = BotoConfig(retries={'max_attempts': 8, 'mode': 'adaptive'}, read_timeout=25, connect_timeout=10)
-
-def safe_call(fn, *args, **kwargs):
-    try:
-        return fn(*args, **kwargs), None
-    except ClientError as e:
-        return None, e.response['Error'].get('Code')
-    except Exception as e:
-        return None, str(e)
-
-def mk_id(*parts: str) -> str:
-    return ":".join([p for p in parts if p])
 
 def enumerate(session: boto3.Session, account_id: str, region: str, g: Graph, warnings: List[str]) -> None:
     # API Gateway v1 (REST)
@@ -33,8 +22,9 @@ def enumerate(session: boto3.Session, account_id: str, region: str, g: Graph, wa
                     sid = st.get('stageName')
                     g.add_node(mk_id('apigw-stage', account_id, region, api_id, sid), f'Stage {sid}', 'api_gw_stage', region, account_id=account_id, parent=mk_id('apigw', account_id, region, api_id))
             # Policy (resource policy may exist)
-            api2, err3 = safe_call(apigw.get_rest_api, restApiId=api_id)
-            # Integrations require walking resources; omitted for brevity in v1
+            _, err3 = safe_call(apigw.get_rest_api, restApiId=api_id)
+            if err3:
+                warnings.append(f"[{account_id}/{region}] apigateway get_rest_api: {err3}")
 
     # API Gateway v2 (HTTP/WebSocket)
     apigwv2 = session.client('apigatewayv2', region_name=region, config=BOTO_CFG)
