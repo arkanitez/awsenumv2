@@ -3,6 +3,7 @@ from typing import List
 from botocore.exceptions import ClientError
 from botocore.config import Config as BotoConfig
 import boto3
+import json
 from ..graph import Graph
 from ..policy import summarize_policy
 from ..utils import safe_call, mk_id
@@ -39,13 +40,14 @@ def enumerate(session: boto3.Session, account_id: str, region: str, g: Graph, wa
                 # Resource policy
                 pol, err = safe_call(lam.get_policy, FunctionName=arn)
                 if not err and pol and pol.get('Policy'):
-                    summary = summarize_policy(pol['Policy'])
+                    policy_doc = json.loads(pol['Policy'])
+                    summary = summarize_policy(policy_doc)
                     g.add_node(
                         mk_id('lambda', account_id, region, arn),
                         name,
                         'lambda',
                         region,
-                        details={'policy': summary}
+                        details={'policy_summary': summary, 'policy': policy_doc}
                     )
 
     except ClientError as e:
