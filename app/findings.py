@@ -26,7 +26,17 @@ def analyze(elements: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         d = n['data']
         if d.get('type') == 'load_balancer' and d['details'].get('scheme') == 'internet-facing':
             # Check listeners via edges to this node
-            pass
+            for e in edges:
+                ed = e['data']
+                if ed['target'] == d['id'] and ed.get('type') == 'listener':
+                    if '0.0.0.0/0' in ed['source']:
+                        findings.append({
+                            'id': f'finding:{d["id"]}:lb-listener',
+                            'severity': 'Medium',
+                            'title': 'Internet-facing LB with public listener',
+                            'detail': f'{d["label"]} has listener {ed["label"]}',
+                            'node_id': d['id']
+                        })
 
     # RDS publicly accessible
     for n in nodes:
