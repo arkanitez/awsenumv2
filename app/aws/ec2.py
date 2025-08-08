@@ -16,6 +16,10 @@ def range_to_str(from_port, to_port, proto) -> str:
     return f"{from_port}-{to_port}"
 
 def classify_target_type(target: Any) -> str:
+    """
+    Note: This classification is based on prefixes and is not guaranteed to be accurate.
+    A more robust implementation would involve additional API calls to describe the resources.
+    """
     s = str(target)
     if s.startswith("igw-"): return "igw"
     if s.startswith("nat-"): return "natgw"
