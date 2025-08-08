@@ -1,13 +1,13 @@
 from __future__ import annotations
 from typing import Any, Dict, List, Tuple
+import json
 
 def summarize_policy(doc: str | Dict[str, Any]) -> List[str]:
     """Return a brief English list of statements. Accepts JSON string or dict."""
-    import json
     if isinstance(doc, str):
         try:
             data = json.loads(doc)
-        except Exception:
+        except json.JSONDecodeError:
             return ["<unparseable policy>"]
     else:
         data = doc or {}
