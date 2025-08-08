@@ -5,19 +5,9 @@ from botocore.config import Config as BotoConfig
 import boto3
 from ..graph import Graph
 from ..policy import summarize_policy
+from ..utils import safe_call, mk_id
 
 BOTO_CFG = BotoConfig(retries={'max_attempts': 8, 'mode': 'adaptive'}, read_timeout=25, connect_timeout=10)
-
-def safe_call(fn, *args, **kwargs):
-    try:
-        return fn(*args, **kwargs), None
-    except ClientError as e:
-        return None, e.response['Error'].get('Code')
-    except Exception as e:
-        return None, str(e)
-
-def mk_id(*parts: str) -> str:
-    return ":".join([p for p in parts if p])
 
 def enumerate(session: boto3.Session, account_id: str, region: str, g: Graph, warnings: List[str]) -> None:
     lam = session.client('lambda', region_name=region, config=BOTO_CFG)
@@ -49,8 +39,14 @@ def enumerate(session: boto3.Session, account_id: str, region: str, g: Graph, wa
                 # Resource policy
                 pol, err = safe_call(lam.get_policy, FunctionName=arn)
                 if not err and pol and pol.get('Policy'):
-                    for line in summarize_policy(pol['Policy']):
-                        # Attach as details list; we keep edges hidden unless toggled
-                        pass
+                    summary = summarize_policy(pol['Policy'])
+                    g.add_node(
+                        mk_id('lambda', account_id, region, arn),
+                        name,
+                        'lambda',
+                        region,
+                        details={'policy': summary}
+                    )
+
     except ClientError as e:
         warnings.append(f"[{account_id}/{region}] lambda list_functions: {e.response['Error'].get('Code')}")
