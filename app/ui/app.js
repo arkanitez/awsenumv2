@@ -84,9 +84,10 @@ function addFindings(fs){
   });
 }
 
-async function enumerate(){
+async function enumerate() {
   setStatus('Enumerating…');
-  addWarnings([]); addFindings([]);
+  addWarnings([]);
+  addFindings([]);
   const regionsRaw = document.getElementById('regions').value.trim();
   const payload = {
     profile: document.getElementById('profile').value.trim() || null,
@@ -94,17 +95,28 @@ async function enumerate(){
     secret_access_key: document.getElementById('sk').value.trim() || null,
     session_token: document.getElementById('st').value.trim() || null,
     assume_roles: (document.getElementById('roles').value.trim() || '').split(',').map(s => s.trim()).filter(Boolean),
-    regions: regionsRaw.toUpperCase() === 'ALL' ? ['ALL'] : (regionsRaw ? regionsRaw.split(',').map(s => s.trim()) : []),
+    regions: regionsRaw.toLowerCase() === 'all' ? ['ALL'] : (regionsRaw ? regionsRaw.split(',').map(s => s.trim()) : []),
     services: {},
   };
-  const res = await fetch('/enumerate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+  const res = await fetch('/enumerate', {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json'
+    },
+    body: JSON.stringify(payload)
+  });
   const data = await res.json();
-  if (!res.ok) { setStatus(data.error || 'Error'); return; }
+  if (!res.ok) {
+    setStatus(data.error || 'Error');
+    return;
+  }
 
   setMeta('Elements: ' + (data.elements?.length || 0));
   cy.elements().remove();
   cy.add(data.elements || []);
-  applyToggles(); runLayout(); cy.fit(null, 50);
+  applyToggles();
+  runLayout();
+  cy.fit(null, 50);
   addWarnings(data.warnings || []);
   addFindings(data.findings || []);
   setStatus('Done');
