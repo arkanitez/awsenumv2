@@ -1,7 +1,6 @@
 from __future__ import annotations
 import os
-import asyncio
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, List
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import orjson
@@ -14,7 +13,7 @@ from .graph import Graph
 from .reachability import derive_reachability
 from .findings import analyze as analyze_findings
 from .aws.session import build_root_session, assume_roles, discover_regions
-from .aws import ec2, elbv2, lambda_, apigw, s3, sqs_sns, dynamodb, kinesis, stepfunctions, ecs, rds, route53_cf, ecr, opensearch, elasticache, msk, nacl_tgw_vpn_dx
+from .aws import ec2, elbv2, lambda_, apigw, s3, sqs_sns, dynamodb, kinesis, stepfunctions, ecs, rds, route53_cf, ecr, opensearch, elasticache, msk, nacl_tgw_vpn_dx, eks
 
 WORKERS = int(os.environ.get('WORKERS', '24'))
 
@@ -39,19 +38,9 @@ async def enumerate_api(req: Request):
 
     root = build_root_session(ak, sk, st, profile)
     sessions = assume_roles(root, role_arns)
-    
-    # Validate user-provided regions
-    all_available_regions = discover_regions(root)
-    if regions and regions != ['ALL']:
-        validated_regions = [r for r in regions if r in all_available_regions]
-        if len(validated_regions) != len(regions):
-            # Return a warning if some regions are invalid
-            invalid_regions = list(set(regions) - set(validated_regions))
-            warnings.append(f"Invalid regions provided and will be skipped: {', '.join(invalid_regions)}")
-        all_regions = validated_regions
-    else:
-        all_regions = all_available_regions
-
+    all_regions = regions
+    if not all_regions or all_regions == ['ALL']:
+        all_regions = discover_regions(root)
 
     g = Graph()
     warnings: List[str] = []
@@ -60,6 +49,7 @@ async def enumerate_api(req: Request):
         ('elbv2', elbv2.enumerate),
         ('lambda', lambda_.enumerate),
         ('apigw', apigw.enumerate),
+        ('eks', eks.enumerate),
         ('s3', s3.enumerate),       # global
         ('sqs_sns', sqs_sns.enumerate),
         ('dynamodb', dynamodb.enumerate),
@@ -75,7 +65,15 @@ async def enumerate_api(req: Request):
         ('nacl_tgw_vpn_dx', nacl_tgw_vpn_dx.enumerate),
     ]
 
-    # Global services (s3, route53_cf) run once per account
+    def _run_fn(fn, sess, account_id, region, g, name):
+        ww = []
+        try:
+            fn(sess, account_id, region, g, ww)
+        except Exception as e:
+            ww.append(f"{name} {account_id}/{region}: {e}")
+        return ww
+
+    # per-account execution
     def run_account(account_arn: str, sess: boto3.Session):
         # identity
         account_id = None
@@ -93,7 +91,7 @@ async def enumerate_api(req: Request):
                     fn(sess, account_id, 'global', g, warnings)
                 except Exception as e:
                     warnings.append(f"{name} global error: {e}")
-        # regional
+        # regional services
         with ThreadPoolExecutor(max_workers=min(WORKERS, max(1, len(all_regions)))) as pool:
             futs = []
             for r in all_regions:
@@ -105,24 +103,34 @@ async def enumerate_api(req: Request):
                 w = f.result()
                 if w: warnings.extend(w)
 
-    def _run_fn(fn, sess, account_id, region, g, name):
-        ww = []
-        try:
-            fn(sess, account_id, region, g, ww)
-        except Exception as e:
-            ww.append(f"{name} {account_id}/{region}: {e}")
-        return ww
-
-    # Run per account
     for arn, sess in sessions.items():
-        if sess is None: 
+        if sess is None:
             warnings.append(f"AssumeRole failed: {arn}"); continue
         run_account(arn, sess)
 
-    # Derived reachability
+    # === Account/Region container parents (for Account view) ===
+    elems_snapshot = g.elements()
+    node_elems = [e for e in elems_snapshot if 'source' not in e['data']]
+    by_acc: dict[str, set[str]] = {}
+    for n in node_elems:
+        d = n['data']; acc = d.get('account_id') or 'self'; reg = d.get('region') or 'global'
+        by_acc.setdefault(acc, set()).add(reg)
+
+    for acc, regs in by_acc.items():
+        g.add_node(f'account:{acc}', f'Account {acc}', 'account', None)
+        for reg in regs:
+            g.add_node(f'account:{acc}:region:{reg}', f'{reg}', 'region', reg, parent=f'account:{acc}')
+    for n in node_elems:
+        d = n['data']
+        if not d.get('parent'):
+            acc = d.get('account_id') or 'self'; reg = d.get('region') or 'global'
+            g.set_parent(d['id'], f'account:{acc}:region:{reg}')
+    # === end containers ===
+
+    # Derived reachability (placeholder; returns [] for now)
     derived = derive_reachability(g)
     for e in derived:
-        g.add_edge(**e)  # e must have keys compatible with Graph.add_edge data
+        g.add_edge(**e)
 
     elements = g.elements()
     findings = analyze_findings(elements)
