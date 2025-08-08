@@ -39,9 +39,19 @@ async def enumerate_api(req: Request):
 
     root = build_root_session(ak, sk, st, profile)
     sessions = assume_roles(root, role_arns)
-    all_regions = regions
-    if not all_regions or all_regions == ['ALL']:
-        all_regions = discover_regions(root)
+    
+    # Validate user-provided regions
+    all_available_regions = discover_regions(root)
+    if regions and regions != ['ALL']:
+        validated_regions = [r for r in regions if r in all_available_regions]
+        if len(validated_regions) != len(regions):
+            # Return a warning if some regions are invalid
+            invalid_regions = list(set(regions) - set(validated_regions))
+            warnings.append(f"Invalid regions provided and will be skipped: {', '.join(invalid_regions)}")
+        all_regions = validated_regions
+    else:
+        all_regions = all_available_regions
+
 
     g = Graph()
     warnings: List[str] = []
